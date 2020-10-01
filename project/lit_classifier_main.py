@@ -2,7 +2,7 @@ from argparse import ArgumentParser
 
 import torch
 import pytorch_lightning as pl
-from pytorch_lightning.metrics.functional import accuracy
+from pytorch_lightning.metrics.sklearns import R2Score
 from torch.nn import functional as F
 
 
@@ -37,7 +37,7 @@ class LitClassifier(pl.LightningModule):
         loss = F.cross_entropy(y_hat, y)
         result = pl.EvalResult(checkpoint_on=loss)
         result.log('val_loss', loss)
-        result.log('val_acc', accuracy(y_hat, y))
+        result.log('val_acc', R2Score(y_hat, y))
         return result
 
     def test_step(self, batch, batch_idx):
@@ -46,7 +46,7 @@ class LitClassifier(pl.LightningModule):
         loss = F.cross_entropy(y_hat, y)
         result = pl.EvalResult(checkpoint_on=loss)
         result.log('test_loss', loss)
-        result.log('test_acc', accuracy(y_hat, y))
+        result.log('test_acc', R2Score(y_hat, y))
         return result
 
     def configure_optimizers(self):
