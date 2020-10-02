@@ -53,7 +53,7 @@ class FiLMGenerator(nn.Module):
 
     
 class FiLMNetwork(pl.LightningModule):
-    def __init__(self, inputs_sz, conds_sz, learning_rate=1e-2, metric=R2Score()):
+    def __init__(self, inputs_sz, conds_sz, learning_rate=1e-3, batch_size=2048, metric=R2Score()):
         super().__init__()
         self.save_hyperparameters()
         self.metric = metric
@@ -106,7 +106,7 @@ class FiLMNetwork(pl.LightningModule):
 
 
 class ConcatNetwork(pl.LightningModule):
-    def __init__(self, inputs_sz, conds_sz, learning_rate=1e-2, metric=R2Score()):
+    def __init__(self, inputs_sz, conds_sz, learning_rate=1e-3, batch_size=2048, metric=R2Score()):
         super().__init__()
         self.save_hyperparameters()
         self.metric = metric

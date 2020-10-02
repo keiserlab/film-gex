@@ -66,7 +66,9 @@ def cv(name, exp, nfolds, dataset, input_cols, cond_cols, batch_size):
         early_stop = EarlyStopping(monitor='val_loss',
                                    min_delta=0.01)
         # Trainer
-        trainer = Trainer(max_epochs=25, 
+        trainer = Trainer(auto_lr_finder=True,
+                          auto_scale_batch_size='power',
+                          max_epochs=25, 
                           gpus=1,
                           logger=logger,
                           early_stop_callback=early_stop,
