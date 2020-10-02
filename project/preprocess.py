@@ -107,7 +107,7 @@ if __name__ == "__main__":
     group = "stripped_cell_line_name"
     n_splits = 5
     gene_cols = ccle.columns.to_numpy()
-    fp_cols = np.append(bits.columns)
+    fp_cols = bits.columns.to_numpy()
     
     data["fold"] = -1
     data = data.sample(frac=1).reset_index(drop=True)
@@ -121,4 +121,5 @@ if __name__ == "__main__":
     joblib.dump(gene_cols, out_path.joinpath("gene_cols.pkl"))
     joblib.dump(fp_cols, out_path.joinpath("fp_cols.pkl"))
     data.to_pickle(out_path.joinpath("train.pkl.gz"))
+    data.sample(frac=0.1).to_pickle(out_path.joinpath("train_sub.pkl.gz"))
     

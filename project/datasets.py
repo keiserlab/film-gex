@@ -23,7 +23,6 @@ class Dataset(torch.utils.data.Dataset):
 
     
 class CTRPDataModule(pl.LightningDataModule):
-
     def __init__(self, train, val, input_cols, cond_cols, target, batch_size=32):
         super().__init__()
         self.train = train
