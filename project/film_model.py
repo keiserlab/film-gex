@@ -44,6 +44,7 @@ class FiLMGenerator(nn.Module):
         super().__init__()
         self.gamma = LinearBlock(*args, **kwargs)
         self.beta = LinearBlock(*args, **kwargs)
+        self.out_sz = kwargs['out_sz']
     
     def forward(self, x):
         gamma = self.gamma(x)
@@ -58,17 +59,13 @@ class FiLMNetwork(pl.LightningModule):
         self.metric = metric
         self.inputs_emb = LinearBlock(in_sz=inputs_sz, layers=[512,256,128,64], out_sz=32, ps=None, use_bn=True, bn_final=True)
         self.conds_emb = LinearBlock(in_sz=conds_sz, layers=[], out_sz=32, ps=None, use_bn=True, bn_final=False)
-        self.film_1 = FiLMGenerator(in_sz=32, layers=[], out_sz=32, ps=None, use_bn=False, bn_final=False)
-        self.block_1 = LinearBlock(in_sz=32, layers=[16], out_sz=16, ps=None, use_bn=True, bn_final=True)
-        self.film_2 = FiLMGenerator(in_sz=32, layers=[], out_sz=16, ps=None, use_bn=False, bn_final=False)
-        self.block_2 = LinearBlock(in_sz=16, layers=[8], out_sz=1, ps=None, use_bn=True, bn_final=False)
+        self.film_1 = FiLMGenerator(in_sz=self.conds_emb.out_sz, layers=[], out_sz=32, ps=None, use_bn=False, bn_final=False)
+        self.block_1 = LinearBlock(in_sz=self.film_1.out_sz, layers=[16], out_sz=16, ps=None, use_bn=True, bn_final=True)
+        self.film_2 = FiLMGenerator(in_sz=self.conds_emb.out_sz, layers=[], out_sz=16, ps=None, use_bn=False, bn_final=False)
+        self.block_2 = LinearBlock(in_sz=self.film_2.out_sz, layers=[8], out_sz=1, ps=None, use_bn=True, bn_final=False)
     
-    def forward(self, conds):
-        return self.conds_emb(conds)
-
-    def training_step(self, batch, batch_idx):
-        inputs, conds, y = batch
-        input_emb = self.inputs_emb(inputs)
+    def forward(self, inputs, conds):
+        inputs_emb = self.inputs_emb(inputs)
         conds_emb = self.conds_emb(conds)
         gamma_1, beta_1 = self.film_1(conds_emb)
         x = input_emb * gamma_1 + beta_1
@@ -76,6 +73,11 @@ class FiLMNetwork(pl.LightningModule):
         gamma_2, beta_2 = self.film_2(conds_emb)
         x = x * gamma_2 + beta_2
         y_hat = self.block_2(x)
+        return inputs_emb, conds_emb, y_hat
+
+    def training_step(self, batch, batch_idx):
+        inputs, conds, y = batch
+        inputs_emb, conds_emb, y_hat = self.forward(inputs, conds)
         loss = F.mse_loss(y_hat, y)
         result = pl.TrainResult(minimize=loss)
         result.log('train_loss', loss)
@@ -83,14 +85,7 @@ class FiLMNetwork(pl.LightningModule):
     
     def validation_step(self, batch, batch_idx):
         inputs, conds, y = batch
-        input_emb = self.inputs_emb(inputs)
-        conds_emb = self.conds_emb(conds)
-        gamma_1, beta_1 = self.film_1(conds_emb)
-        x = input_emb * gamma_1 + beta_1
-        x = self.block_1(x)
-        gamma_2, beta_2 = self.film_2(conds_emb)
-        x = x * gamma_2 + beta_2
-        y_hat = self.block_2(x)
+        inputs_emb, conds_emb, y_hat = self.forward(inputs, conds)
         loss = F.mse_loss(y_hat, y)
         result = pl.EvalResult(checkpoint_on=loss)
         result.log('val_loss', loss, on_step=True)
@@ -99,14 +94,7 @@ class FiLMNetwork(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         inputs, conds, y = batch
-        input_emb = self.inputs_emb(inputs)
-        conds_emb = self.conds_emb(conds)
-        gamma_1, beta_1 = self.film_1(conds_emb)
-        x = input_emb * gamma_1 + beta_1
-        x = self.block_1(x)
-        gamma_2, beta_2 = self.film_2(conds_emb)
-        x = x * gamma_2 + beta_2
-        y_hat = self.block_2(x)
+        inputs_emb, conds_emb, y_hat = self.forward(inputs, conds)
         loss = F.mse_loss(y_hat, y)
         result = pl.EvalResult(checkpoint_on=loss)
         result.log('test_loss', loss, on_step=True)
@@ -115,4 +103,51 @@ class FiLMNetwork(pl.LightningModule):
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+
+
+class ConcatNetwork(pl.LightningModule):
+    def __init__(self, inputs_sz, conds_sz, learning_rate=1e-2, metric=R2Score()):
+        super().__init__()
+        self.save_hyperparameters()
+        self.metric = metric
+        self.inputs_emb = LinearBlock(in_sz=inputs_sz, layers=[512,256,128,64], out_sz=32, ps=None, use_bn=True, bn_final=True)
+        self.conds_emb = LinearBlock(in_sz=conds_sz, layers=[], out_sz=32, ps=None, use_bn=True, bn_final=False)
+        self.block_1 = LinearBlock(in_sz=self.inputs_emb.out_sz + self.conds_emb.out_sz, layers=[16], out_sz=16, ps=None, use_bn=True, bn_final=True)
+        self.block_2 = LinearBlock(in_sz=self.block_1.out_sz, layers=[8], out_sz=1, ps=None, use_bn=True, bn_final=False)
     
+    def forward(self, inputs, conds):
+        inputs_emb = self.inputs_emb(inputs)
+        conds_emb = self.conds_emb(conds)
+        x = torch.cat([inputs_emb, conds_emb], dim=1)
+        x = self.block_1(x)
+        y_hat = self.block_2(x)
+        return inputs_emb, conds_emb, y_hat
+    
+    def training_step(self, batch, batch_idx):
+        inputs, conds, y = batch
+        inputs_emb, conds_emb, y_hat = self.forward(inputs, conds)
+        loss = F.mse_loss(y_hat, y)
+        result = pl.TrainResult(minimize=loss)
+        result.log('train_loss', loss)
+        return result
+    
+    def validation_step(self, batch, batch_idx):
+        inputs, conds, y = batch
+        inputs_emb, conds_emb, y_hat = self.forward(inputs, conds)
+        loss = F.mse_loss(y_hat, y)
+        result = pl.EvalResult(checkpoint_on=loss)
+        result.log('val_loss', loss, on_step=True)
+        result.log('val_r2', self.metric(y_hat, y), on_step=True)
+        return result
+    
+    def test_step(self, batch, batch_idx):
+        inputs, conds, y = batch
+        inputs_emb, conds_emb, y_hat = self.forward(inputs, conds)
+        loss = F.mse_loss(y_hat, y)
+        result = pl.EvalResult(checkpoint_on=loss)
+        result.log('test_loss', loss, on_step=True)
+        result.log('test_r2', self.metric(y_hat, y), on_step=True)
+        return result
+    
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
