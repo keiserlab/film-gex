@@ -40,7 +40,7 @@ def prepare(exp, subset=True):
     return dataset, input_cols, cond_cols
 
 
-def cv(name, exp, nfolds, dataset, input_cols, cond_cols, batch_size):
+def cv(name, exp, gpus, nfolds, dataset, input_cols, cond_cols):
     seed_everything(2299)
     cols = list(np.concatenate((input_cols, cond_cols, ['cpd_avg_pv'])))
     
@@ -52,8 +52,7 @@ def cv(name, exp, nfolds, dataset, input_cols, cond_cols, batch_size):
                             val,
                             input_cols,
                             cond_cols,
-                            target='cpd_avg_pv',
-                            batch_size=batch_size)
+                            target='cpd_avg_pv')
         # Model
         if exp=='film':
             model = FiLMNetwork(len(input_cols), len(cond_cols))
@@ -69,7 +68,7 @@ def cv(name, exp, nfolds, dataset, input_cols, cond_cols, batch_size):
         trainer = Trainer(auto_lr_finder=True,
                           auto_scale_batch_size='power',
                           max_epochs=25, 
-                          gpus=1,
+                          gpus=gpus,
                           logger=logger,
                           early_stop_callback=early_stop,
                           distributed_backend='dp')
@@ -87,8 +86,8 @@ def main():
         help="Prepended name of experiment.")
     parser.add_argument("experiment", type=str, choices=['id', 'concat', 'film'],
         help="Model type.")
-    parser.add_argument("--batch-size", type=int,
-        help="Size of batches for training.")
+    parser.add_argument("--gpus", type=int, choices=[0,1,2,3,4,5,6,7],
+        help="Number of gpus.")
     parser.add_argument("--nfolds", type=int, choices=[1,2,3,4,5],
         help="Number of folds to run (sequential).")
     parser.add_argument("--test-run", default=False, action="store_true",
@@ -96,14 +95,14 @@ def main():
     args = parser.parse_args()
     
     dataset, input_cols, cond_cols = prepare(exp=args.experiment,
-                                          subset=args.test_run)
+                                             subset=args.test_run)
     return cv(name=args.name,
               exp=args.experiment,
+              gpus=args.gpus,
               nfolds=args.nfolds,
               dataset=dataset,
               input_cols=input_cols,
-              cond_cols=cond_cols,
-              batch_size=args.batch_size)
+              cond_cols=cond_cols)
 
 
 if __name__ == '__main__':  # pragma: no cover
