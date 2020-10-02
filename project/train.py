@@ -9,6 +9,7 @@ import argparse
 import pandas as pd
 import numpy as np
 from sklearn import model_selection
+import pyarrow.dataset as ds
 
 # Modeling
 from pytorch_lightning import Trainer, seed_everything
@@ -23,27 +24,29 @@ from film_model import FiLMNetwork, ConcatNetwork
 def prepare(exp, subset=True):
     data_path = Path("../../film-gex-data/processed/")
     input_cols = joblib.load(data_path.joinpath("gene_cols.pkl"))
-    if subset:
-        data = pd.read_pickle(data_path.joinpath("train_sub.pkl.gz"))
-    else:
-        data = pd.read_pickle(data_path.joinpath("train.pkl.gz"))
     
     if exp=='id':
-        cpd_id = "broad_cpd_id"
+        cpd_id = "master_cpd_id"
         cond_cols = np.array([cpd_id, 'cpd_conc_umol'])
-        data[cpd_id] = data[cpd_id].astype("category").cat.codes
     else:
         fp_cols = joblib.load(data_path.joinpath("fp_cols.pkl"))
         cond_cols = np.append(fp_cols, ['cpd_conc_umol'])
-    return data, input_cols, cond_cols
+        
+    if subset:
+        dataset = ds.dataset(data_path.joinpath("train_sub.feather"), format='feather')
+    else:
+        dataset = ds.dataset(data_path.joinpath("train.feather"), format='feather')
+        
+    return dataset, input_cols, cond_cols
 
 
-def cv(exp, nfolds, data, input_cols, cond_cols, batch_size):
+def cv(name, exp, nfolds, dataset, input_cols, cond_cols, batch_size):
     seed_everything(2299)
+    cols = list(np.concatenate((input_cols, cond_cols, ['cpd_avg_pv'])))
     
     for fold in np.arange(0,nfolds):
-        train = data[data['fold']!=fold]
-        val = data[data['fold']==fold]
+        train = dataset.to_table(columns=cols, filter=ds.field('fold') != fold).to_pandas()
+        val = dataset.to_table(columns=cols, filter=ds.field('fold') == fold).to_pandas()
         # DataModule
         dm = CTRPDataModule(train,
                             val,
@@ -58,13 +61,13 @@ def cv(exp, nfolds, data, input_cols, cond_cols, batch_size):
             model = ConcatNetwork(len(input_cols), len(cond_cols))
         # Callbacks
         logger = TensorBoardLogger(save_dir=os.getcwd(),
-                                   version="{}_fold_{}".format(exp, fold),
+                                   version="{}_{}_fold_{}".format(name, exp, fold),
                                    name='lightning_logs')
         early_stop = EarlyStopping(monitor='val_loss',
                                    min_delta=0.01)
         # Trainer
-        trainer = Trainer(max_epochs=50, 
-                          gpus=-1,
+        trainer = Trainer(max_epochs=25, 
+                          gpus=1,
                           logger=logger,
                           early_stop_callback=early_stop,
                           distributed_backend='dp')
@@ -78,6 +81,8 @@ def main():
     parser = argparse.ArgumentParser(description=desc,
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     # positional
+    parser.add_argument("name", type=str,
+        help="Prepended name of experiment.")
     parser.add_argument("experiment", type=str, choices=['id', 'concat', 'film'],
         help="Model type.")
     parser.add_argument("--batch-size", type=int,
@@ -88,11 +93,12 @@ def main():
         help="Use a subset of the data for testing.")
     args = parser.parse_args()
     
-    data, input_cols, cond_cols = prepare(exp=args.experiment,
+    dataset, input_cols, cond_cols = prepare(exp=args.experiment,
                                           subset=args.test_run)
-    return cv(exp=args.experiment,
+    return cv(name=args.name,
+              exp=args.experiment,
               nfolds=args.nfolds,
-              data=data,
+              dataset=dataset,
               input_cols=input_cols,
               cond_cols=cond_cols,
               batch_size=args.batch_size)

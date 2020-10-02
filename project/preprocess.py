@@ -20,6 +20,7 @@ Script to preprocess data.
 import os
 from pathlib import Path
 import joblib
+import pyarrow.feather as feather
 
 # Data handling
 import numpy as np
@@ -120,6 +121,6 @@ if __name__ == "__main__":
     out_path.mkdir(parents=True, exist_ok=True)
     joblib.dump(gene_cols, out_path.joinpath("gene_cols.pkl"))
     joblib.dump(fp_cols, out_path.joinpath("fp_cols.pkl"))
-    data.to_pickle(out_path.joinpath("train.pkl.gz"))
-    data.sample(frac=0.1).to_pickle(out_path.joinpath("train_sub.pkl.gz"))
+    data.sample(frac=0.1).reset_index(drop=True).to_feather(out_path.joinpath("train_sub.feather"))
+    data.reset_index(drop=True).to_feather(out_path.joinpath("train.feather"))
     

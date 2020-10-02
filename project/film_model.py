@@ -68,7 +68,7 @@ class FiLMNetwork(pl.LightningModule):
         inputs_emb = self.inputs_emb(inputs)
         conds_emb = self.conds_emb(conds)
         gamma_1, beta_1 = self.film_1(conds_emb)
-        x = input_emb * gamma_1 + beta_1
+        x = inputs_emb * gamma_1 + beta_1
         x = self.block_1(x)
         gamma_2, beta_2 = self.film_2(conds_emb)
         x = x * gamma_2 + beta_2
@@ -89,7 +89,7 @@ class FiLMNetwork(pl.LightningModule):
         loss = F.mse_loss(y_hat, y)
         result = pl.EvalResult(checkpoint_on=loss)
         result.log('val_loss', loss, on_step=True)
-        result.log('val_r2', self.metric(y_hat, y), on_step=True)
+        result.log('val_r2', self.metric(y_hat, y))
         return result
 
     def test_step(self, batch, batch_idx):
@@ -98,7 +98,7 @@ class FiLMNetwork(pl.LightningModule):
         loss = F.mse_loss(y_hat, y)
         result = pl.EvalResult(checkpoint_on=loss)
         result.log('test_loss', loss, on_step=True)
-        result.log('test_r2', self.metric(y_hat, y), on_step=True)
+        result.log('test_r2', self.metric(y_hat, y))
         return result
 
     def configure_optimizers(self):
@@ -137,7 +137,7 @@ class ConcatNetwork(pl.LightningModule):
         loss = F.mse_loss(y_hat, y)
         result = pl.EvalResult(checkpoint_on=loss)
         result.log('val_loss', loss, on_step=True)
-        result.log('val_r2', self.metric(y_hat, y), on_step=True)
+        result.log('val_r2', self.metric(y_hat, y))
         return result
     
     def test_step(self, batch, batch_idx):
@@ -146,7 +146,7 @@ class ConcatNetwork(pl.LightningModule):
         loss = F.mse_loss(y_hat, y)
         result = pl.EvalResult(checkpoint_on=loss)
         result.log('test_loss', loss, on_step=True)
-        result.log('test_r2', self.metric(y_hat, y), on_step=True)
+        result.log('test_r2', self.metric(y_hat, y))
         return result
     
     def configure_optimizers(self):
