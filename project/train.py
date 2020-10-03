@@ -4,6 +4,7 @@ import sys
 import joblib
 from pathlib import Path
 import argparse
+from datetime import datetime
 
 # Data handling
 import pandas as pd
@@ -36,15 +37,16 @@ def prepare(exp, subset=True):
         dataset = ds.dataset(data_path.joinpath("train_sub.feather"), format='feather')
     else:
         dataset = ds.dataset(data_path.joinpath("train.feather"), format='feather')
-        
+
     return dataset, input_cols, cond_cols
 
 
-def cv(name, exp, gpus, nfolds, dataset, input_cols, cond_cols):
+def cv(name, exp, gpus, nfolds, dataset, input_cols, cond_cols, batch_size):
     seed_everything(2299)
     cols = list(np.concatenate((input_cols, cond_cols, ['cpd_avg_pv'])))
-    
+
     for fold in np.arange(0,nfolds):
+        start = datetime.now()
         train = dataset.to_table(columns=cols, filter=ds.field('fold') != fold).to_pandas()
         val = dataset.to_table(columns=cols, filter=ds.field('fold') == fold).to_pandas()
         # DataModule
@@ -52,7 +54,9 @@ def cv(name, exp, gpus, nfolds, dataset, input_cols, cond_cols):
                             val,
                             input_cols,
                             cond_cols,
-                            target='cpd_avg_pv')
+                            target='cpd_avg_pv',
+                            batch_size=batch_size)
+        print("Completed dataloading in {}".format(str(datetime.now() - start)))
         # Model
         if exp=='film':
             model = FiLMNetwork(len(input_cols), len(cond_cols))
@@ -65,15 +69,18 @@ def cv(name, exp, gpus, nfolds, dataset, input_cols, cond_cols):
         early_stop = EarlyStopping(monitor='val_loss',
                                    min_delta=0.01)
         # Trainer
-        trainer = Trainer(auto_lr_finder=True,
-                          auto_scale_batch_size='power',
+        start = datetime.now()
+        trainer = Trainer(auto_lr_find=True,
+                          auto_scale_batch_size=False,
                           max_epochs=25, 
-                          gpus=gpus,
+                          gpus=[gpus],
                           logger=logger,
-                          early_stop_callback=early_stop,
-                          distributed_backend='dp')
+                          early_stop_callback=False,
+                          distributed_backend=False)
         trainer.fit(model, dm)
-    return print("Completed CV")
+        print("Completed fold {} in {}".format(fold, str(datetime.now() - start)))
+    
+    return print("/done")
 
 
 def main():
@@ -90,6 +97,8 @@ def main():
         help="Number of gpus.")
     parser.add_argument("--nfolds", type=int, choices=[1,2,3,4,5],
         help="Number of folds to run (sequential).")
+    parser.add_argument("--batch-size", type=int,
+        help="Training batch size.")
     parser.add_argument("--test-run", default=False, action="store_true",
         help="Use a subset of the data for testing.")
     args = parser.parse_args()
@@ -102,7 +111,8 @@ def main():
               nfolds=args.nfolds,
               dataset=dataset,
               input_cols=input_cols,
-              cond_cols=cond_cols)
+              cond_cols=cond_cols,
+              batch_size=args.batch_size)
 
 
 if __name__ == '__main__':  # pragma: no cover

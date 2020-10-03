@@ -8,6 +8,9 @@ import pytorch_lightning as pl
 # Transforms
 from sklearn.preprocessing import StandardScaler
 
+# Testing
+from datetime import datetime
+
 
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, data, input_cols, cond_cols, target):
@@ -40,13 +43,17 @@ class CTRPDataModule(pl.LightningDataModule):
     # OPTIONAL, called for every GPU/machine (assigning state is OK)
     def setup(self, stage):
         # transformations
+        start = datetime.now()
         self.scaler = StandardScaler()
         self.train.loc[:,self.input_cols] = self.scaler.fit_transform(self.train.loc[:,self.input_cols])
         self.val.loc[:,self.input_cols] = self.scaler.transform(self.val.loc[:,self.input_cols])
+        print("Completed scaling in {}".format(str(datetime.now() - start)))
         
         if stage == 'fit':
+            start = datetime.now() 
             self.train_dataset = Dataset(self.train, self.input_cols, self.cond_cols, self.target)
             self.val_dataset = Dataset(self.val, self.input_cols, self.cond_cols, self.target)
+            print('Completed dataset creation in {}'.format(str(datetime.now() - start)))
             return self.train_dataset, self.val_dataset
         if stage == 'test':
             self.test_dataset = Dataset(self.test, self.input_cols, self.cond_cols, self.target)
