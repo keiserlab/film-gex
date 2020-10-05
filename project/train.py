@@ -46,6 +46,8 @@ def cv(name, exp, gpus, nfolds, dataset, input_cols, cond_cols, batch_size):
     cols = list(np.concatenate((input_cols, cond_cols, ['cpd_avg_pv'])))
 
     for fold in np.arange(0,nfolds):
+        chkpts_path = Path("chkpt_{}_{}".format(name, fold))
+        chkpts_path.mkdir(parents=True, exist_ok=True)
         start = datetime.now()
         train = dataset.to_table(columns=cols, filter=ds.field('fold') != fold).to_pandas()
         val = dataset.to_table(columns=cols, filter=ds.field('fold') == fold).to_pandas()
@@ -70,7 +72,8 @@ def cv(name, exp, gpus, nfolds, dataset, input_cols, cond_cols, batch_size):
                                    min_delta=0.01)
         # Trainer
         start = datetime.now()
-        trainer = Trainer(auto_lr_find=True,
+        trainer = Trainer(#weights_save_path=chkpts_path,
+                          auto_lr_find=False,
                           auto_scale_batch_size=False,
                           max_epochs=25, 
                           gpus=[gpus],
