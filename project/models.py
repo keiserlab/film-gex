@@ -74,6 +74,7 @@ class FiLMNetwork(pl.LightningModule):
         gamma_2, beta_2 = self.film_2(conds_b_emb)
         x = x * gamma_2 + beta_2
         y_hat = self.block_2(x)
+        y_hat = torch.clamp(y_hat, min=0)
         return inputs_emb, conds_a_emb, conds_b_emb, y_hat
 
     def training_step(self, batch, batch_idx):
@@ -119,6 +120,7 @@ class ConcatNetwork(pl.LightningModule):
         x = torch.cat([inputs_emb, conds_emb], dim=1)
         x = self.block_1(x)
         y_hat = self.block_2(x)
+        y_hat = torch.clamp(y_hat, min=0)
         return inputs_emb, conds_emb, y_hat
     
     def training_step(self, batch, batch_idx):
