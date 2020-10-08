@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
-from pytorch_lightning.metrics.sklearns import R2Score
+from sklearn.metrics import r2_score
 
 
 class LinearBlock(nn.Module):
@@ -53,7 +53,7 @@ class FiLMGenerator(nn.Module):
 
     
 class FiLMNetwork(pl.LightningModule):
-    def __init__(self, inputs_sz, conds_sz, learning_rate=1e-3, batch_size=2048, metric=R2Score()):
+    def __init__(self, inputs_sz, conds_sz, learning_rate=1e-3, batch_size=2048, metric=r2_score):
         super().__init__()
         self.save_hyperparameters()
         self.metric = metric
@@ -79,34 +79,31 @@ class FiLMNetwork(pl.LightningModule):
         inputs, conds, y = batch
         inputs_emb, conds_emb, y_hat = self.forward(inputs, conds)
         loss = F.mse_loss(y_hat, y)
-        result = pl.TrainResult(minimize=loss)
-        result.log('train_loss', loss)
-        return result
+        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        return loss
     
     def validation_step(self, batch, batch_idx):
         inputs, conds, y = batch
         inputs_emb, conds_emb, y_hat = self.forward(inputs, conds)
         loss = F.mse_loss(y_hat, y)
-        result = pl.EvalResult(checkpoint_on=loss)
-        result.log('val_loss', loss, on_step=True)
-        result.log('val_r2', self.metric(y_hat, y))
-        return result
+        self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('val_r2', self.metric(y_hat.cpu(), y.cpu()), on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        return loss
 
     def test_step(self, batch, batch_idx):
         inputs, conds, y = batch
         inputs_emb, conds_emb, y_hat = self.forward(inputs, conds)
         loss = F.mse_loss(y_hat, y)
-        result = pl.EvalResult(checkpoint_on=loss)
-        result.log('test_loss', loss, on_step=True)
-        result.log('test_r2', self.metric(y_hat, y))
-        return result
+        self.log('test_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('test_r2', self.metric(y_hat.cpu(), y.cpu()), on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        return loss
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
 
 
 class ConcatNetwork(pl.LightningModule):
-    def __init__(self, inputs_sz, conds_sz, learning_rate=1e-3, batch_size=2048, metric=R2Score()):
+    def __init__(self, inputs_sz, conds_sz, learning_rate=1e-3, batch_size=2048, metric=r2_score):
         super().__init__()
         self.save_hyperparameters()
         self.metric = metric
@@ -127,27 +124,24 @@ class ConcatNetwork(pl.LightningModule):
         inputs, conds, y = batch
         inputs_emb, conds_emb, y_hat = self.forward(inputs, conds)
         loss = F.mse_loss(y_hat, y)
-        result = pl.TrainResult(minimize=loss)
-        result.log('train_loss', loss)
-        return result
+        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        return loss
     
     def validation_step(self, batch, batch_idx):
         inputs, conds, y = batch
         inputs_emb, conds_emb, y_hat = self.forward(inputs, conds)
         loss = F.mse_loss(y_hat, y)
-        result = pl.EvalResult(checkpoint_on=loss)
-        result.log('val_loss', loss, on_step=True)
-        result.log('val_r2', self.metric(y_hat, y))
-        return result
+        self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('val_r2', self.metric(y_hat.cpu(), y.cpu()), on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        return loss
     
     def test_step(self, batch, batch_idx):
         inputs, conds, y = batch
         inputs_emb, conds_emb, y_hat = self.forward(inputs, conds)
         loss = F.mse_loss(y_hat, y)
-        result = pl.EvalResult(checkpoint_on=loss)
-        result.log('test_loss', loss, on_step=True)
-        result.log('test_r2', self.metric(y_hat, y))
-        return result
+        self.log('test_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('test_r2', self.metric(y_hat.cpu(), y.cpu()), on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        return loss
     
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)

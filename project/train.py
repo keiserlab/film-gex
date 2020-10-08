@@ -46,8 +46,8 @@ def cv(name, exp, gpus, nfolds, dataset, input_cols, cond_cols, batch_size):
     cols = list(np.concatenate((input_cols, cond_cols, ['cpd_avg_pv'])))
 
     for fold in np.arange(0,nfolds):
-        chkpts_path = Path("chkpt_{}_{}".format(name, fold))
-        chkpts_path.mkdir(parents=True, exist_ok=True)
+        #chkpts_path = Path("chkpt_{}_{}".format(name, fold))
+        #chkpts_path.mkdir(parents=True, exist_ok=True)
         start = datetime.now()
         train = dataset.to_table(columns=cols, filter=ds.field('fold') != fold).to_pandas()
         val = dataset.to_table(columns=cols, filter=ds.field('fold') == fold).to_pandas()
@@ -69,17 +69,18 @@ def cv(name, exp, gpus, nfolds, dataset, input_cols, cond_cols, batch_size):
                                    version="{}_{}_fold_{}".format(name, exp, fold),
                                    name='lightning_logs')
         early_stop = EarlyStopping(monitor='val_loss',
-                                   min_delta=0.01)
+                                   min_delta=0.001)
         # Trainer
         start = datetime.now()
         trainer = Trainer(#weights_save_path=chkpts_path,
-                          auto_lr_find=False,
+                          auto_lr_find=True,
                           auto_scale_batch_size=False,
                           max_epochs=25, 
                           gpus=[gpus],
                           logger=logger,
-                          early_stop_callback=False,
-                          distributed_backend=False)
+                          distributed_backend=False,
+                          callbacks=[early_stop])
+        trainer.tune(model=model, datamodule=dm)
         trainer.fit(model, dm)
         print("Completed fold {} in {}".format(fold, str(datetime.now() - start)))
     
