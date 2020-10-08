@@ -64,38 +64,39 @@ class FiLMNetwork(pl.LightningModule):
         self.film_2 = FiLMGenerator(in_sz=self.conds_emb.out_sz, layers=[], out_sz=16, ps=None, use_bn=False, bn_final=False)
         self.block_2 = LinearBlock(in_sz=self.film_2.out_sz, layers=[8], out_sz=1, ps=None, use_bn=True, bn_final=False)
     
-    def forward(self, inputs, conds):
+    def forward(self, inputs, conds_a, conds_b):
         inputs_emb = self.inputs_emb(inputs)
-        conds_emb = self.conds_emb(conds)
-        gamma_1, beta_1 = self.film_1(conds_emb)
+        conds_a_emb = self.conds_emb(conds_a)
+        conds_b_emb = self.conds_emb(conds_b)
+        gamma_1, beta_1 = self.film_1(conds_a_emb)
         x = inputs_emb * gamma_1 + beta_1
         x = self.block_1(x)
-        gamma_2, beta_2 = self.film_2(conds_emb)
+        gamma_2, beta_2 = self.film_2(conds_b_emb)
         x = x * gamma_2 + beta_2
         y_hat = self.block_2(x)
-        return inputs_emb, conds_emb, y_hat
+        return inputs_emb, conds_a_emb, conds_b_emb, y_hat
 
     def training_step(self, batch, batch_idx):
         inputs, conds, y = batch
-        inputs_emb, conds_emb, y_hat = self.forward(inputs, conds)
+        inputs_emb, conds_a_emb, conds_b_emb, y_hat = self.forward(inputs, conds, conds)
         loss = F.mse_loss(y_hat, y)
-        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return loss
     
     def validation_step(self, batch, batch_idx):
         inputs, conds, y = batch
-        inputs_emb, conds_emb, y_hat = self.forward(inputs, conds)
+        inputs_emb, conds_a_emb, conds_b_emb, y_hat = self.forward(inputs, conds, conds)
         loss = F.mse_loss(y_hat, y)
-        self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        self.log('val_r2', self.metric(y_hat.cpu(), y.cpu()), on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('val_r2', self.metric(y.cpu(), y_hat.cpu()), on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     def test_step(self, batch, batch_idx):
         inputs, conds, y = batch
-        inputs_emb, conds_emb, y_hat = self.forward(inputs, conds)
+        inputs_emb, conds_a_emb, conds_b_emb, y_hat = self.forward(inputs, conds, conds)
         loss = F.mse_loss(y_hat, y)
-        self.log('test_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        self.log('test_r2', self.metric(y_hat.cpu(), y.cpu()), on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('test_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('test_r2', self.metric(y.cpu(), y_hat.cpu()), on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     def configure_optimizers(self):
@@ -124,23 +125,23 @@ class ConcatNetwork(pl.LightningModule):
         inputs, conds, y = batch
         inputs_emb, conds_emb, y_hat = self.forward(inputs, conds)
         loss = F.mse_loss(y_hat, y)
-        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return loss
     
     def validation_step(self, batch, batch_idx):
         inputs, conds, y = batch
         inputs_emb, conds_emb, y_hat = self.forward(inputs, conds)
         loss = F.mse_loss(y_hat, y)
-        self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        self.log('val_r2', self.metric(y_hat.cpu(), y.cpu()), on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('val_r2', self.metric(y.cpu(), y_hat.cpu()), on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return loss
     
     def test_step(self, batch, batch_idx):
         inputs, conds, y = batch
         inputs_emb, conds_emb, y_hat = self.forward(inputs, conds)
         loss = F.mse_loss(y_hat, y)
-        self.log('test_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        self.log('test_r2', self.metric(y_hat.cpu(), y.cpu()), on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('test_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('test_r2', self.metric(y.cpu(), y_hat.cpu()), on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return loss
     
     def configure_optimizers(self):

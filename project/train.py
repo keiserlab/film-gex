@@ -19,7 +19,7 @@ from pytorch_lightning.loggers.tensorboard import TensorBoardLogger
 
 # Custom
 from datasets import Dataset, CTRPDataModule
-from film_model import FiLMNetwork, ConcatNetwork
+from models import FiLMNetwork, ConcatNetwork
 
 
 def prepare(exp, subset=True):
@@ -46,8 +46,6 @@ def cv(name, exp, gpus, nfolds, dataset, input_cols, cond_cols, batch_size):
     cols = list(np.concatenate((input_cols, cond_cols, ['cpd_avg_pv'])))
 
     for fold in np.arange(0,nfolds):
-        #chkpts_path = Path("chkpt_{}_{}".format(name, fold))
-        #chkpts_path.mkdir(parents=True, exist_ok=True)
         start = datetime.now()
         train = dataset.to_table(columns=cols, filter=ds.field('fold') != fold).to_pandas()
         val = dataset.to_table(columns=cols, filter=ds.field('fold') == fold).to_pandas()
@@ -72,7 +70,7 @@ def cv(name, exp, gpus, nfolds, dataset, input_cols, cond_cols, batch_size):
                                    min_delta=0.001)
         # Trainer
         start = datetime.now()
-        trainer = Trainer(#weights_save_path=chkpts_path,
+        trainer = Trainer(default_root_dir=logger.log_dir, #in order to avoid lr_find_temp.ckpt conflicts
                           auto_lr_find=True,
                           auto_scale_batch_size=False,
                           max_epochs=25, 
