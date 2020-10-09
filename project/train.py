@@ -22,40 +22,51 @@ from datasets import Dataset, CTRPDataModule
 from models import FiLMNetwork, ConcatNetwork
 
 
-def prepare(exp, subset=True):
-    data_path = Path("../../film-gex-data/processed/")
-    input_cols = joblib.load(data_path.joinpath("gene_cols.pkl"))
+def read(path, exp, fold, subset=True):
+    """
+    Format data for access.
+    
+    path :: Path to data location.
+    exp :: Type of model to train/evaluate.
+    subset :: Access data subset for testing.
+    """
+    path = Path(path)
+    input_cols = joblib.load(path.joinpath("gene_cols.pkl"))
     
     if exp=='id':
         cpd_id = "master_cpd_id"
         cond_cols = np.array([cpd_id, 'cpd_conc_umol'])
     else:
-        fp_cols = joblib.load(data_path.joinpath("fp_cols.pkl"))
+        fp_cols = joblib.load(path.joinpath("fp_cols.pkl"))
         cond_cols = np.append(fp_cols, ['cpd_conc_umol'])
         
     if subset:
-        dataset = ds.dataset(data_path.joinpath("train_sub.feather"), format='feather')
+        train_ds = ds.dataset(path.joinpath("sub_train_fold_{}.feather").format(fold), format='feather')
+        val_ds = ds.dataset(path.joinpath("sub_val_fold_{}.feather").format(fold), format='feather')
     else:
-        dataset = ds.dataset(data_path.joinpath("train.feather"), format='feather')
+        train_ds = ds.dataset(path.joinpath("train_fold_{}.feather").format(fold), format='feather')
+        val_ds = ds.dataset(path.joinpath("val_fold_{}.feather").format(fold), format='feather')
 
-    return dataset, input_cols, cond_cols
+    return train_ds, val_ds, input_cols, cond_cols
 
 
-def cv(name, exp, gpus, nfolds, dataset, input_cols, cond_cols, batch_size):
+def cv(name, exp, target, batch_size, path, gpus, nfolds, subset):
     seed_everything(2299)
-    cols = list(np.concatenate((input_cols, cond_cols, ['cpd_avg_pv'])))
+    path = Path(path)
 
-    for fold in np.arange(0,nfolds):
+    for fold in range(nfolds):
         start = datetime.now()
-        train = dataset.to_table(columns=cols, filter=ds.field('fold') != fold).to_pandas()
-        val = dataset.to_table(columns=cols, filter=ds.field('fold') == fold).to_pandas()
+        train_ds, val_ds, input_cols, cond_cols = read(path, exp, fold, subset)
+        cols = list(np.concatenate((input_cols, cond_cols, [target])))
+        train = train_ds.to_table(columns=cols).to_pandas()
+        val = val_ds.to_table(columns=cols).to_pandas()
         # DataModule
         dm = CTRPDataModule(train,
                             val,
                             input_cols,
                             cond_cols,
-                            target='cpd_avg_pv',
-                            batch_size=batch_size)
+                            target,
+                            batch_size)
         print("Completed dataloading in {}".format(str(datetime.now() - start)))
         # Model
         if exp=='film':
@@ -79,7 +90,7 @@ def cv(name, exp, gpus, nfolds, dataset, input_cols, cond_cols, batch_size):
                           distributed_backend=False,
                           #callbacks=[early_stop],
                           flush_logs_every_n_steps=200)
-        #trainer.tune(model=model, datamodule=dm)
+        #trainer.tune(model=model, datamodule=dm) # for auto_lr_find
         trainer.fit(model, dm)
         print("Completed fold {} in {}".format(fold, str(datetime.now() - start)))
     
@@ -96,26 +107,21 @@ def main():
         help="Prepended name of experiment.")
     parser.add_argument("experiment", type=str, choices=['id', 'concat', 'film'],
         help="Model type.")
-    parser.add_argument("--gpus", type=int, choices=[0,1,2,3,4,5,6,7],
-        help="Number of gpus.")
-    parser.add_argument("--nfolds", type=int, choices=[1,2,3,4,5],
-        help="Number of folds to run (sequential).")
-    parser.add_argument("--batch-size", type=int,
+    parser.add_argument("target", type=str, choices=['cpd_avg_pv', 'cpd_pred_pv'],
+        help="Target variable.")
+    parser.add_argument("bs", type=int,
         help="Training batch size.")
+    parser.add_argument("path", type=str,
+        help="Path to preprocessed data.")
+    parser.add_argument("--gpus", type=int, choices=[0,1,2,3,4,5,6,7], default=5,
+        help="Number of gpus.")
+    parser.add_argument("--nfolds", type=int, choices=[1,2,3,4,5], default=1,
+        help="Number of folds to run (sequential).")
     parser.add_argument("--test-run", default=False, action="store_true",
         help="Use a subset of the data for testing.")
     args = parser.parse_args()
-    
-    dataset, input_cols, cond_cols = prepare(exp=args.experiment,
-                                             subset=args.test_run)
-    return cv(name=args.name,
-              exp=args.experiment,
-              gpus=args.gpus,
-              nfolds=args.nfolds,
-              dataset=dataset,
-              input_cols=input_cols,
-              cond_cols=cond_cols,
-              batch_size=args.batch_size)
+
+    return cv(*args)
 
 
 if __name__ == '__main__':  # pragma: no cover

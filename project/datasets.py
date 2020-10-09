@@ -42,12 +42,6 @@ class CTRPDataModule(pl.LightningDataModule):
 
     # OPTIONAL, called for every GPU/machine (assigning state is OK)
     def setup(self, stage):
-        # transformations
-        start = datetime.now()
-        self.scaler = StandardScaler()
-        self.train.loc[:,self.input_cols] = self.scaler.fit_transform(self.train.loc[:,self.input_cols])
-        self.val.loc[:,self.input_cols] = self.scaler.transform(self.val.loc[:,self.input_cols])
-        print("Completed scaling in {}".format(str(datetime.now() - start)))
         
         if stage == 'fit':
             start = datetime.now() 

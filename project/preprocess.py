@@ -1,4 +1,4 @@
-#!/srv/home/wconnell/anaconda3/envs/fastai
+#!/srv/home/wconnell/anaconda3/envs/lightning
 
 """
 Author: Will Connell
@@ -18,6 +18,8 @@ Script to preprocess data.
 
 # I/O
 import os
+import sys
+import argparse
 from pathlib import Path
 import joblib
 import pyarrow.feather as feather
@@ -55,20 +57,13 @@ def smiles_to_bits(smiles, nBits):
     return df
 
 
-###########################################################################################################################################
-#        #       #       #       #       #       #       #       #       #       #       #       #       #       #       #       #       # 
-#                                                                 PROCESSING                                                           
-#    #       #       #       #       #       #       #       #       #       #       #       #       #       #       #       #       #     
-###########################################################################################################################################
-
-
-if __name__ == "__main__":
+def process(out_path):
     np.random.seed(2299)
     ## Read data
     # Paths
     ds_path = Path("../../film-gex-data/drug_screens/")
     cm_path = Path("../../film-gex-data/cellular_models/")
-    out_path = Path("../../film-gex-data/processed/")
+    #out_path = Path("../../film-gex-data/processed/")
     # CCLE
     meta_ccle = pd.read_csv(cm_path.joinpath("sample_info.csv"))
     ccle = pd.read_csv(cm_path.joinpath("CCLE_expression.csv"), index_col=0)
@@ -119,11 +114,50 @@ if __name__ == "__main__":
     for fold, (train_idx, val_idx) in enumerate(gkf.split(X=data, y=data[target].to_numpy(), groups=data[group].to_numpy())):
         print(len(train_idx), len(val_idx))
         data.loc[val_idx, 'fold'] = fold
+        
+    ## Generate transforms & write
+    for fold in range(0, n_splits):
+        train = data[data['fold'] != fold]
+        val = data[data['fold'] == fold]
+        # Transform
+        scaler = StandardScaler()
+        train.loc[:,gene_cols] = scaler.fit_transform(train.loc[:,gene_cols])
+        val.loc[:,gene_cols] = scaler.transform(val.loc[:,gene_cols])
+        # Write
+        train.reset_index(drop=True).to_feather(out_path.joinpath("train_fold_{}.feather".format(fold)))
+        val.reset_index(drop=True).to_feather(out_path.joinpath("val_fold_{}.feather".format(fold)))
+        # Testing set
+        train.sample(frac=0.05).reset_index(drop=True).to_feather(out_path.joinpath("sub_train_fold_{}.feather".format(fold)))
+        val.sample(frac=0.05).reset_index(drop=True).to_feather(out_path.joinpath("sub_val_fold_{}.feather".format(fold)))
     
     ## Write out
     out_path.mkdir(parents=True, exist_ok=True)
     joblib.dump(gene_cols, out_path.joinpath("gene_cols.pkl"))
     joblib.dump(fp_cols, out_path.joinpath("fp_cols.pkl"))
-    data.sample(frac=0.1).reset_index(drop=True).to_feather(out_path.joinpath("train_sub.feather"))
-    data.reset_index(drop=True).to_feather(out_path.joinpath("train.feather"))
+    data.sample(frac=0.05).reset_index(drop=True).to_feather(out_path.joinpath("data_sub.feather"))
+    data.reset_index(drop=True).to_feather(out_path.joinpath("data.feather"))
     
+    return "Complete"
+
+
+###########################################################################################################################################
+#        #       #       #       #       #       #       #       #       #       #       #       #       #       #       #       #       # 
+#                                                                    CLI                                                           
+#    #       #       #       #       #       #       #       #       #       #       #       #       #       #       #       #       #     
+###########################################################################################################################################
+
+def main():
+    """Parse Arguments"""
+    desc = "Script for preprocessing data for reproducibility."
+    parser = argparse.ArgumentParser(description=desc,
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    # positional
+    parser.add_argument("out-path", type=str,
+        help="Directory to write processed data.")
+    args = parser.parse_args()
+    
+    return process(*args)
+
+
+if __name__ == "__main__": # pragma: no cover
+    sys.exit(main())  
