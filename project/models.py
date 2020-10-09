@@ -81,7 +81,7 @@ class FiLMNetwork(pl.LightningModule):
         inputs, conds, y = batch
         inputs_emb, conds_a_emb, conds_b_emb, y_hat = self.forward(inputs, conds, conds)
         loss = F.mse_loss(y_hat, y)
-        self.log('train_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return loss
     
     def validation_step(self, batch, batch_idx):
@@ -127,7 +127,7 @@ class ConcatNetwork(pl.LightningModule):
         inputs, conds, y = batch
         inputs_emb, conds_emb, y_hat = self.forward(inputs, conds)
         loss = F.mse_loss(y_hat, y)
-        self.log('train_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return loss
     
     def validation_step(self, batch, batch_idx):

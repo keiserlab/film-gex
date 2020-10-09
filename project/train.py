@@ -59,9 +59,9 @@ def cv(name, exp, gpus, nfolds, dataset, input_cols, cond_cols, batch_size):
         print("Completed dataloading in {}".format(str(datetime.now() - start)))
         # Model
         if exp=='film':
-            model = FiLMNetwork(len(input_cols), len(cond_cols))
+            model = FiLMNetwork(len(input_cols), len(cond_cols), learning_rate=1e-3)
         else:
-            model = ConcatNetwork(len(input_cols), len(cond_cols))
+            model = ConcatNetwork(len(input_cols), len(cond_cols), learning_rate=1e-3)
         # Callbacks
         logger = TensorBoardLogger(save_dir=os.getcwd(),
                                    version="{}_{}_fold_{}".format(name, exp, fold),
@@ -71,14 +71,15 @@ def cv(name, exp, gpus, nfolds, dataset, input_cols, cond_cols, batch_size):
         # Trainer
         start = datetime.now()
         trainer = Trainer(default_root_dir=logger.log_dir, #in order to avoid lr_find_temp.ckpt conflicts
-                          auto_lr_find=True,
+                          auto_lr_find=False,
                           auto_scale_batch_size=False,
-                          max_epochs=25, 
+                          max_epochs=10, 
                           gpus=[gpus],
                           logger=logger,
                           distributed_backend=False,
-                          callbacks=[early_stop])
-        trainer.tune(model=model, datamodule=dm)
+                          #callbacks=[early_stop],
+                          flush_logs_every_n_steps=200)
+        #trainer.tune(model=model, datamodule=dm)
         trainer.fit(model, dm)
         print("Completed fold {} in {}".format(fold, str(datetime.now() - start)))
     

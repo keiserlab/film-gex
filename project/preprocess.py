@@ -32,6 +32,9 @@ from rdkit import DataStructs
 from rdkit.Chem import MolFromSmiles
 from rdkit.Chem import AllChem
 
+# Transforms
+from sklearn.preprocessing import StandardScaler
+
 
 ###########################################################################################################################################
 #        #       #       #       #       #       #       #       #       #       #       #       #       #       #       #       #       # 
