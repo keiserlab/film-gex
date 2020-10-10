@@ -61,9 +61,10 @@ def process(out_path):
     np.random.seed(2299)
     ## Read data
     # Paths
+    out_path = Path(out_path)
+    out_path.mkdir(parents=True, exist_ok=True)
     ds_path = Path("../../film-gex-data/drug_screens/")
     cm_path = Path("../../film-gex-data/cellular_models/")
-    #out_path = Path("../../film-gex-data/processed/")
     # CCLE
     meta_ccle = pd.read_csv(cm_path.joinpath("sample_info.csv"))
     ccle = pd.read_csv(cm_path.joinpath("CCLE_expression.csv"), index_col=0)
@@ -131,7 +132,6 @@ def process(out_path):
         val.sample(frac=0.05).reset_index(drop=True).to_feather(out_path.joinpath("sub_val_fold_{}.feather".format(fold)))
     
     ## Write out
-    out_path.mkdir(parents=True, exist_ok=True)
     joblib.dump(gene_cols, out_path.joinpath("gene_cols.pkl"))
     joblib.dump(fp_cols, out_path.joinpath("fp_cols.pkl"))
     data.sample(frac=0.05).reset_index(drop=True).to_feather(out_path.joinpath("data_sub.feather"))
@@ -152,11 +152,11 @@ def main():
     parser = argparse.ArgumentParser(description=desc,
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     # positional
-    parser.add_argument("out-path", type=str,
+    parser.add_argument("path", type=str,
         help="Directory to write processed data.")
     args = parser.parse_args()
     
-    return process(*args)
+    return process(args.path)
 
 
 if __name__ == "__main__": # pragma: no cover

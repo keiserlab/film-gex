@@ -5,9 +5,6 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import pytorch_lightning as pl
 
-# Transforms
-from sklearn.preprocessing import StandardScaler
-
 # Testing
 from datetime import datetime
 
@@ -44,11 +41,10 @@ class CTRPDataModule(pl.LightningDataModule):
     def setup(self, stage):
         
         if stage == 'fit':
-            start = datetime.now() 
             self.train_dataset = Dataset(self.train, self.input_cols, self.cond_cols, self.target)
             self.val_dataset = Dataset(self.val, self.input_cols, self.cond_cols, self.target)
-            print('Completed dataset creation in {}'.format(str(datetime.now() - start)))
             return self.train_dataset, self.val_dataset
+        
         if stage == 'test':
             self.test_dataset = Dataset(self.test, self.input_cols, self.cond_cols, self.target)
             return self.test_dataset
