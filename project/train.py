@@ -41,18 +41,21 @@ def read(path, exp, fold, subset=True):
         cond_cols = np.append(fp_cols, ['cpd_conc_umol'])
         
     if subset:
-        train_ds = ds.dataset(path.joinpath("sub_train_fold_{}.feather").format(fold), format='feather')
-        val_ds = ds.dataset(path.joinpath("sub_val_fold_{}.feather").format(fold), format='feather')
+        train_ds = ds.dataset(path.joinpath(f"sub_train_fold_{fold}.feather"), format='feather')
+        val_ds = ds.dataset(path.joinpath(f"sub_val_fold_{fold}.feather"), format='feather')
     else:
-        train_ds = ds.dataset(path.joinpath("train_fold_{}.feather").format(fold), format='feather')
-        val_ds = ds.dataset(path.joinpath("val_fold_{}.feather").format(fold), format='feather')
+        train_ds = ds.dataset(path.joinpath(f"train_fold_{fold}.feather"), format='feather')
+        val_ds = ds.dataset(path.joinpath(f"val_fold_{fold}.feather"), format='feather')
 
     return train_ds, val_ds, input_cols, cond_cols
 
 
-def cv(name, exp, target, batch_size, path, gpus, nfolds, subset):
+def cv(name, exp, target, batch_size, path, logs, gpus, nfolds, subset):
     seed_everything(2299)
+    # Paths
     path = Path(path)
+    logs = Path(logs)
+    logs.mkdir(parents=True, exist_ok=True)
 
     for fold in range(nfolds):
         start = datetime.now()
@@ -74,8 +77,8 @@ def cv(name, exp, target, batch_size, path, gpus, nfolds, subset):
         else:
             model = ConcatNetwork(len(input_cols), len(cond_cols), learning_rate=1e-3)
         # Callbacks
-        logger = TensorBoardLogger(save_dir=os.getcwd(),
-                                   version="{}_{}_fold_{}".format(name, exp, fold),
+        logger = TensorBoardLogger(save_dir=logs,
+                                   version=f"{name}_{exp}_fold_{fold}",
                                    name='lightning_logs')
         early_stop = EarlyStopping(monitor='val_loss',
                                    min_delta=0.001)
@@ -105,23 +108,25 @@ def main():
     # positional
     parser.add_argument("name", type=str,
         help="Prepended name of experiment.")
-    parser.add_argument("experiment", type=str, choices=['id', 'concat', 'film'],
+    parser.add_argument("exp", type=str, choices=['id', 'concat', 'film'],
         help="Model type.")
     parser.add_argument("target", type=str, choices=['cpd_avg_pv', 'cpd_pred_pv'],
         help="Target variable.")
-    parser.add_argument("bs", type=int,
+    parser.add_argument("batch_size", type=int,
         help="Training batch size.")
     parser.add_argument("path", type=str,
         help="Path to preprocessed data.")
+    parser.add_argument("logs", type=str,
+        help="Path to model logs and checkpoints.")
     parser.add_argument("--gpus", type=int, choices=[0,1,2,3,4,5,6,7], default=5,
-        help="Number of gpus.")
+        help="Selected GPU.")
     parser.add_argument("--nfolds", type=int, choices=[1,2,3,4,5], default=1,
         help="Number of folds to run (sequential).")
-    parser.add_argument("--test-run", default=False, action="store_true",
+    parser.add_argument("--subset", default=False, action="store_true",
         help="Use a subset of the data for testing.")
     args = parser.parse_args()
 
-    return cv(*args)
+    return cv(**vars(args))
 
 
 if __name__ == '__main__':  # pragma: no cover
