@@ -1,4 +1,5 @@
 # PyTorch
+import numpy as np
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -39,6 +40,9 @@ class CTRPDataModule(pl.LightningDataModule):
 
     # OPTIONAL, called for every GPU/machine (assigning state is OK)
     def setup(self, stage):
+        # Lower limit
+        self.train[self.target] = np.clip(self.train[self.target], a_min=0., a_max=None)
+        self.val[self.target] = np.clip(self.val[self.target], a_min=0., a_max=None)
         
         if stage == 'fit':
             self.train_dataset = Dataset(self.train, self.input_cols, self.cond_cols, self.target)

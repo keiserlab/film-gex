@@ -50,14 +50,14 @@ def read(path, exp, fold, subset=True):
     return train_ds, val_ds, input_cols, cond_cols
 
 
-def cv(name, exp, target, batch_size, path, logs, gpus, nfolds, subset):
+def cv(name, exp, target, batch_size, path, logs, nfolds, gpus, subset):
     seed_everything(2299)
     # Paths
     path = Path(path)
     logs = Path(logs)
     logs.mkdir(parents=True, exist_ok=True)
 
-    for fold in range(nfolds):
+    for fold in nfolds:
         start = datetime.now()
         train_ds, val_ds, input_cols, cond_cols = read(path, exp, fold, subset)
         cols = list(np.concatenate((input_cols, cond_cols, [target])))
@@ -90,11 +90,14 @@ def cv(name, exp, target, batch_size, path, logs, gpus, nfolds, subset):
                           max_epochs=10, 
                           gpus=[gpus],
                           logger=logger,
-                          distributed_backend=False,
+                          distributed_backend=None,
                           #callbacks=[early_stop],
-                          flush_logs_every_n_steps=200)
+                          flush_logs_every_n_steps=200,
+                          profiler=True)
         #trainer.tune(model=model, datamodule=dm) # for auto_lr_find
         trainer.fit(model, dm)
+        # remove data 
+        del train, val
         print("Completed fold {} in {}".format(fold, str(datetime.now() - start)))
     
     return print("/done")
@@ -118,10 +121,10 @@ def main():
         help="Path to preprocessed data.")
     parser.add_argument("logs", type=str,
         help="Path to model logs and checkpoints.")
-    parser.add_argument("--gpus", type=int, choices=[0,1,2,3,4,5,6,7], default=5,
+    parser.add_argument("--nfolds", type=int, nargs="+", choices=[0,1,2,3,4], default=0, required=True,
+        help="List of folds to run.")
+    parser.add_argument("--gpus", type=int, choices=[0,1,2,3,4,5,6,7], default=5, required=True,
         help="Selected GPU.")
-    parser.add_argument("--nfolds", type=int, choices=[1,2,3,4,5], default=1,
-        help="Number of folds to run (sequential).")
     parser.add_argument("--subset", default=False, action="store_true",
         help="Use a subset of the data for testing.")
     args = parser.parse_args()
