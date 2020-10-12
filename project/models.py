@@ -89,7 +89,7 @@ class FiLMNetwork(pl.LightningModule):
         inputs_emb, conds_a_emb, conds_b_emb, y_hat = self.forward(inputs, conds, conds)
         loss = F.mse_loss(y_hat, y)
         self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
-        self.log('val_r2', self.metric(y.cpu(), y_hat.cpu()), on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('val_r2', self.metric(y.detach().cpu(), y_hat.detach().cpu()), on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     def test_step(self, batch, batch_idx):
@@ -97,7 +97,7 @@ class FiLMNetwork(pl.LightningModule):
         inputs_emb, conds_a_emb, conds_b_emb, y_hat = self.forward(inputs, conds, conds)
         loss = F.mse_loss(y_hat, y)
         self.log('test_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
-        self.log('test_r2', self.metric(y.cpu(), y_hat.cpu()), on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('test_r2', self.metric(y.detach().cpu(), y_hat.detach().cpu()), on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     def configure_optimizers(self):
@@ -112,13 +112,14 @@ class ConcatNetwork(pl.LightningModule):
         self.inputs_emb = LinearBlock(in_sz=inputs_sz, layers=[512,256,128,64], out_sz=32, ps=None, use_bn=True, bn_final=True)
         self.conds_emb = LinearBlock(in_sz=conds_sz, layers=[], out_sz=32, ps=None, use_bn=True, bn_final=False)
         self.block_1 = LinearBlock(in_sz=self.inputs_emb.out_sz + self.conds_emb.out_sz, layers=[16], out_sz=16, ps=None, use_bn=True, bn_final=True)
-        self.block_2 = LinearBlock(in_sz=self.block_1.out_sz, layers=[8], out_sz=1, ps=None, use_bn=True, bn_final=False)
+        self.block_2 = LinearBlock(in_sz=self.block_1.out_sz + self.conds_emb.out_sz, layers=[8], out_sz=1, ps=None, use_bn=True, bn_final=False)
     
     def forward(self, inputs, conds):
         inputs_emb = self.inputs_emb(inputs)
         conds_emb = self.conds_emb(conds)
         x = torch.cat([inputs_emb, conds_emb], dim=1)
         x = self.block_1(x)
+        x = torch.cat([x, conds_emb], dim=1)
         y_hat = self.block_2(x)
         y_hat = torch.clamp(y_hat, min=0)
         return inputs_emb, conds_emb, y_hat
@@ -135,7 +136,7 @@ class ConcatNetwork(pl.LightningModule):
         inputs_emb, conds_emb, y_hat = self.forward(inputs, conds)
         loss = F.mse_loss(y_hat, y)
         self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
-        self.log('val_r2', self.metric(y.cpu(), y_hat.cpu()), on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('val_r2', self.metric(y.detach().cpu(), y_hat.detach().cpu()), on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return loss
     
     def test_step(self, batch, batch_idx):
@@ -143,7 +144,7 @@ class ConcatNetwork(pl.LightningModule):
         inputs_emb, conds_emb, y_hat = self.forward(inputs, conds)
         loss = F.mse_loss(y_hat, y)
         self.log('test_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
-        self.log('test_r2', self.metric(y.cpu(), y_hat.cpu()), on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('test_r2', self.metric(y.detach().cpu(), y_hat.detach().cpu()), on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return loss
     
     def configure_optimizers(self):
