@@ -157,7 +157,7 @@ class MultiFiLMNetwork(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
 
 
-class FiLMNetwork(pl.LightningModule):
+class ScaleNetwork(pl.LightningModule):
     """Conditional scaling network."""
     def __init__(self, inputs_sz, conds_sz, learning_rate=1e-3, batch_size=2048, metric=r2_score):
         super().__init__()

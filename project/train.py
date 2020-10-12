@@ -19,7 +19,7 @@ from pytorch_lightning.loggers.tensorboard import TensorBoardLogger
 
 # Custom
 from datasets import Dataset, CTRPDataModule
-from models import FiLMNetwork, ConcatNetwork
+from models import FiLMNetwork, MultiFiLMNetwork, ScaleNetwork, ConcatNetwork
 
 
 def read(path, exp, fold, subset=True):
@@ -72,9 +72,13 @@ def cv(name, exp, target, batch_size, path, logs, nfolds, gpus, subset):
                             batch_size)
         print("Completed dataloading in {}".format(str(datetime.now() - start)))
         # Model
-        if exp=='film':
+        if exp is 'singlefilm':
             model = FiLMNetwork(len(input_cols), len(cond_cols), learning_rate=1e-3)
-        else:
+        elif exp is 'multifilm':
+            model = MultiFiLMNetwork(len(input_cols), len(cond_cols), learning_rate=1e-3)
+        elif exp is 'scale':
+            model = ScaleNetwork(len(input_cols), len(cond_cols), learning_rate=1e-3)
+        elif exp is 'id':
             model = ConcatNetwork(len(input_cols), len(cond_cols), learning_rate=1e-3)
         # Callbacks
         logger = TensorBoardLogger(save_dir=logs,
@@ -111,7 +115,7 @@ def main():
     # positional
     parser.add_argument("name", type=str,
         help="Prepended name of experiment.")
-    parser.add_argument("exp", type=str, choices=['id', 'concat', 'film'],
+    parser.add_argument("exp", type=str, choices=['id', 'bias', 'scale', 'singlefilm', 'multifilm'],
         help="Model type.")
     parser.add_argument("target", type=str, choices=['cpd_avg_pv', 'cpd_pred_pv'],
         help="Target variable.")
