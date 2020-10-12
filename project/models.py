@@ -67,10 +67,11 @@ class FiLMNetwork(pl.LightningModule):
         inputs_emb = self.inputs_emb(inputs)
         conds_a_emb = self.conds_emb(conds_a)
         conds_b_emb = self.conds_emb(conds_b)
-        gamma, beta = self.film_gen(conds_a_emb)
-        x = inputs_emb * gamma + beta
+        gamma_a, beta_a = self.film_gen(conds_a_emb)
+        gamma_b, beta_b = self.film_gen(conds_b_emb)
+        x = inputs_emb * gamma_a + beta_a
         x = self.block_1(x)
-        x = x * gamma + beta
+        x = x * gamma_b + beta_b
         y_hat = self.block_2(x)
         y_hat = torch.clamp(y_hat, min=0)
         return inputs_emb, conds_a_emb, conds_b_emb, y_hat
