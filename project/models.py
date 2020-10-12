@@ -157,7 +157,7 @@ class MultiFiLMNetwork(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
 
 
-class ScaleNetwork(pl.LightningModule):
+class FiLMNetwork(pl.LightningModule):
     """Conditional scaling network."""
     def __init__(self, inputs_sz, conds_sz, learning_rate=1e-3, batch_size=2048, metric=r2_score):
         super().__init__()
@@ -173,11 +173,11 @@ class ScaleNetwork(pl.LightningModule):
         inputs_emb = self.inputs_emb(inputs)
         conds_a_emb = self.conds_emb(conds_a)
         conds_b_emb = self.conds_emb(conds_b)
-        gamma_a, beta_a = self.film_gen(conds_a_emb)
-        gamma_b, beta_b = self.film_gen(conds_b_emb)
-        x = inputs_emb * gamma_a + beta_a
+        gamma_a, _ = self.film_gen(conds_a_emb)
+        gamma_b, _ = self.film_gen(conds_b_emb)
+        x = inputs_emb * gamma_a
         x = self.block_1(x)
-        x = x * gamma_b + beta_b
+        x = x * gamma_b
         y_hat = self.block_2(x)
         y_hat = torch.clamp(y_hat, min=0)
         return inputs_emb, conds_a_emb, conds_b_emb, y_hat
