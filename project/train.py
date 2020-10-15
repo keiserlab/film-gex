@@ -70,15 +70,17 @@ def cv(name, exp, target, batch_size, path, logs, nfolds, gpus, subset):
                             cond_cols,
                             target,
                             batch_size)
+        # remove data 
+        del train, val
         print("Completed dataloading in {}".format(str(datetime.now() - start)))
         # Model
-        if exp is 'singlefilm':
+        if exp=='singlefilm':
             model = FiLMNetwork(len(input_cols), len(cond_cols), learning_rate=1e-3)
-        elif exp is 'multifilm':
+        elif exp=='multifilm':
             model = MultiFiLMNetwork(len(input_cols), len(cond_cols), learning_rate=1e-3)
-        elif exp is 'scale':
+        elif exp=='scale':
             model = ScaleNetwork(len(input_cols), len(cond_cols), learning_rate=1e-3)
-        elif exp is 'id':
+        else:
             model = ConcatNetwork(len(input_cols), len(cond_cols), learning_rate=1e-3)
         # Callbacks
         logger = TensorBoardLogger(save_dir=logs,
@@ -100,8 +102,6 @@ def cv(name, exp, target, batch_size, path, logs, nfolds, gpus, subset):
                           profiler=True)
         #trainer.tune(model=model, datamodule=dm) # for auto_lr_find
         trainer.fit(model, dm)
-        # remove data 
-        del train, val
         print("Completed fold {} in {}".format(fold, str(datetime.now() - start)))
     
     return print("/done")
