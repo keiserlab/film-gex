@@ -19,7 +19,7 @@ from pytorch_lightning.loggers.tensorboard import TensorBoardLogger
 
 # Custom
 from datasets import Dataset, CTRPDataModule
-from models import FiLMNetwork, MultiFiLMNetwork, ScaleNetwork, ConcatNetwork
+from models import ConditionalNetwork
 
 
 def read(path, exp, fold, subset=True):
@@ -70,18 +70,11 @@ def cv(name, exp, target, batch_size, path, logs, nfolds, gpus, subset):
                             cond_cols,
                             target,
                             batch_size)
-        # remove data 
+        # Remove data from CPU
         del train, val
         print("Completed dataloading in {}".format(str(datetime.now() - start)))
         # Model
-        if exp=='singlefilm':
-            model = FiLMNetwork(len(input_cols), len(cond_cols), learning_rate=1e-3)
-        elif exp=='multifilm':
-            model = MultiFiLMNetwork(len(input_cols), len(cond_cols), learning_rate=1e-3)
-        elif exp=='scale':
-            model = ScaleNetwork(len(input_cols), len(cond_cols), learning_rate=1e-3)
-        else:
-            model = ConcatNetwork(len(input_cols), len(cond_cols), learning_rate=1e-3)
+        model = ConditionalNetwork(exp, len(input_cols), len(cond_cols), learning_rate=1e-4, batch_size=batch_size)
         # Callbacks
         logger = TensorBoardLogger(save_dir=logs,
                                    version=f"{name}_{exp}_fold_{fold}",
@@ -93,7 +86,7 @@ def cv(name, exp, target, batch_size, path, logs, nfolds, gpus, subset):
         trainer = Trainer(default_root_dir=logger.log_dir, #in order to avoid lr_find_temp.ckpt conflicts
                           auto_lr_find=False,
                           auto_scale_batch_size=False,
-                          max_epochs=10, 
+                          max_epochs=25, 
                           gpus=[gpus],
                           logger=logger,
                           distributed_backend=None,
@@ -115,7 +108,7 @@ def main():
     # positional
     parser.add_argument("name", type=str,
         help="Prepended name of experiment.")
-    parser.add_argument("exp", type=str, choices=['id', 'bias', 'scale', 'singlefilm', 'multifilm'],
+    parser.add_argument("exp", type=str, choices=['id', 'shift', 'scale', 'film'],
         help="Model type.")
     parser.add_argument("target", type=str, choices=['cpd_avg_pv', 'cpd_pred_pv'],
         help="Target variable.")
