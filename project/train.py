@@ -19,7 +19,7 @@ from pytorch_lightning.loggers.tensorboard import TensorBoardLogger
 
 # Custom
 from datasets import Dataset, CTRPDataModule
-from models import ConditionalNetwork
+from models import ConditionalNetwork, StandardNetwork
 
 
 def read(path, exp, fold, subset=True):
@@ -33,12 +33,16 @@ def read(path, exp, fold, subset=True):
     path = Path(path)
     input_cols = joblib.load(path.joinpath("gene_cols.pkl"))
     
-    if exp=='id':
+    if exp == 'id':
         cpd_id = "master_cpd_id"
         cond_cols = np.array([cpd_id, 'cpd_conc_umol'])
     else:
         fp_cols = joblib.load(path.joinpath("fp_cols.pkl"))
         cond_cols = np.append(fp_cols, ['cpd_conc_umol'])
+    
+    if exp == 'vanilla':
+        input_cols = np.append(input_cols, cond_cols)
+        cond_cols = np.array([])
         
     if subset:
         train_ds = ds.dataset(path.joinpath(f"sub_train_fold_{fold}.feather"), format='feather')
@@ -74,7 +78,10 @@ def cv(name, exp, target, batch_size, path, logs, nfolds, gpus, subset):
         del train, val
         print("Completed dataloading in {}".format(str(datetime.now() - start)))
         # Model
-        model = ConditionalNetwork(exp, len(input_cols), len(cond_cols), learning_rate=1e-4, batch_size=batch_size)
+        if exp == 'vanilla':
+            model = StandardNetwork(exp, len(input_cols), learning_rate=1e-3, batch_size=batch_size)
+        else:
+            model = ConditionalNetwork(exp, len(input_cols), len(cond_cols), learning_rate=1e-3, batch_size=batch_size)
         # Callbacks
         logger = TensorBoardLogger(save_dir=logs,
                                    version=f"{name}_{exp}_fold_{fold}",
@@ -86,7 +93,7 @@ def cv(name, exp, target, batch_size, path, logs, nfolds, gpus, subset):
         trainer = Trainer(default_root_dir=logger.log_dir, #in order to avoid lr_find_temp.ckpt conflicts
                           auto_lr_find=False,
                           auto_scale_batch_size=False,
-                          max_epochs=25, 
+                          max_epochs=15, 
                           gpus=[gpus],
                           logger=logger,
                           distributed_backend=None,
@@ -108,7 +115,7 @@ def main():
     # positional
     parser.add_argument("name", type=str,
         help="Prepended name of experiment.")
-    parser.add_argument("exp", type=str, choices=['id', 'shift', 'scale', 'film'],
+    parser.add_argument("exp", type=str, choices=['vanilla', 'id', 'shift', 'scale', 'film'],
         help="Model type.")
     parser.add_argument("target", type=str, choices=['cpd_avg_pv', 'cpd_pred_pv'],
         help="Target variable.")

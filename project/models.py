@@ -64,10 +64,10 @@ class ConditionalNetwork(pl.LightningModule):
     def __init__(self, exp, inputs_sz, conds_sz, metric=r2_score, learning_rate=1e-3, batch_size=2048, ps=[0.2]):
         super().__init__()
         self.inputs_emb = LinearBlock(in_sz=inputs_sz, layers=[512,256,128,64], out_sz=32, ps=ps, use_bn=True, bn_final=True)
-        self.conds_emb = LinearBlock(in_sz=conds_sz, layers=[128], out_sz=32, ps=ps, use_bn=True, bn_final=True)
-        self.film_1 = FiLMGenerator(in_sz=self.conds_emb.out_sz, layers=[16], out_sz=self.inputs_emb.out_sz, ps=None, use_bn=False, bn_final=False)
+        self.conds_emb = LinearBlock(in_sz=conds_sz, layers=[256,128], out_sz=32, ps=ps, use_bn=True, bn_final=True)
+        self.film_1 = FiLMGenerator(in_sz=self.conds_emb.out_sz, layers=[16], out_sz=self.inputs_emb.out_sz, ps=ps, use_bn=True, bn_final=True)
         self.block_1 = LinearBlock(in_sz=self.film_1.out_sz, layers=[16], out_sz=32, ps=ps, use_bn=True, bn_final=True)
-        self.film_2 = FiLMGenerator(in_sz=self.conds_emb.out_sz, layers=[16], out_sz=self.block_1.out_sz, ps=None, use_bn=False, bn_final=False)
+        self.film_2 = FiLMGenerator(in_sz=self.conds_emb.out_sz, layers=[16], out_sz=self.block_1.out_sz, ps=ps, use_bn=True, bn_final=True)
         self.block_2 = LinearBlock(in_sz=self.film_2.out_sz, layers=[8], out_sz=1, ps=ps, use_bn=True, bn_final=False)
         self.save_hyperparameters()
     
@@ -102,6 +102,45 @@ class ConditionalNetwork(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         inputs, conds, y = batch
         inputs_emb, conds_a_emb, conds_b_emb, y_hat = self.forward(inputs, conds, conds)
+        loss = F.mse_loss(y_hat, y)
+        self.log('test_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('test_r2', self.hparams['metric'](y.detach().cpu(), y_hat.detach().cpu()), on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        return loss
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+    
+    
+class StandardNetwork(pl.LightningModule):
+    """Vanilla MLP"""
+    def __init__(self, exp, inputs_sz, metric=r2_score, learning_rate=1e-3, batch_size=2048, ps=[0.2]):
+        super().__init__()
+        self.mlp = LinearBlock(in_sz=inputs_sz, layers=[512,256,128,64,32,16,8], out_sz=1, ps=ps, use_bn=True, bn_final=False)
+        self.save_hyperparameters()
+    
+    def forward(self, inputs):
+        y_hat = self.mlp(inputs)
+        y_hat = torch.clamp(y_hat, min=0)
+        return y_hat
+
+    def training_step(self, batch, batch_idx):
+        inputs, conds, y = batch
+        y_hat = self.forward(inputs)
+        loss = F.mse_loss(y_hat, y)
+        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        return loss
+    
+    def validation_step(self, batch, batch_idx):
+        inputs, conds, y = batch
+        y_hat = self.forward(inputs)
+        loss = F.mse_loss(y_hat, y)
+        self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('val_r2', self.hparams['metric'](y.detach().cpu(), y_hat.detach().cpu()), on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        return loss
+
+    def test_step(self, batch, batch_idx):
+        inputs, conds, y = batch
+        y_hat = self.forward(inputs)
         loss = F.mse_loss(y_hat, y)
         self.log('test_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         self.log('test_r2', self.hparams['metric'](y.detach().cpu(), y_hat.detach().cpu()), on_step=False, on_epoch=True, prog_bar=True, logger=True)
