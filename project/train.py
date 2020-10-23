@@ -54,7 +54,7 @@ def read(path, exp, fold, subset=True):
     return train_ds, val_ds, input_cols, cond_cols
 
 
-def cv(name, exp, target, batch_size, path, logs, nfolds, gpus, subset):
+def cv(name, exp, target, batch_size, learning_rate, epochs, path, logs, nfolds, gpus, subset):
     seed_everything(2299)
     # Paths
     path = Path(path)
@@ -79,25 +79,28 @@ def cv(name, exp, target, batch_size, path, logs, nfolds, gpus, subset):
         print("Completed dataloading in {}".format(str(datetime.now() - start)))
         # Model
         if exp == 'vanilla':
-            model = StandardNetwork(exp, len(input_cols), learning_rate=1e-3, batch_size=batch_size)
+            model = StandardNetwork(exp, len(input_cols), learning_rate=learning_rate, batch_size=batch_size)
         else:
-            model = ConditionalNetwork(exp, len(input_cols), len(cond_cols), learning_rate=1e-3, batch_size=batch_size)
+            model = ConditionalNetwork(exp, len(input_cols), len(cond_cols), learning_rate=learning_rate, batch_size=batch_size)
         # Callbacks
         logger = TensorBoardLogger(save_dir=logs,
                                    version=f"{name}_{exp}_fold_{fold}",
                                    name='lightning_logs')
-        early_stop = EarlyStopping(monitor='val_loss',
-                                   min_delta=0.001)
+        early_stop = EarlyStopping(monitor='val_r2',
+                                   min_delta=0.001,
+                                   patience=5,
+                                   verbose=False,
+                                   mode='max')
         # Trainer
         start = datetime.now()
         trainer = Trainer(default_root_dir=logger.log_dir, #in order to avoid lr_find_temp.ckpt conflicts
                           auto_lr_find=False,
                           auto_scale_batch_size=False,
-                          max_epochs=15, 
+                          max_epochs=epochs, 
                           gpus=[gpus],
                           logger=logger,
                           distributed_backend=None,
-                          #callbacks=[early_stop],
+                          callbacks=[early_stop,],
                           flush_logs_every_n_steps=200,
                           profiler=True)
         #trainer.tune(model=model, datamodule=dm) # for auto_lr_find
@@ -119,11 +122,15 @@ def main():
         help="Model type.")
     parser.add_argument("target", type=str, choices=['cpd_avg_pv', 'cpd_pred_pv'],
         help="Target variable.")
-    parser.add_argument("batch_size", type=int,
+    parser.add_argument("--batch_size", type=int, default=32768,
         help="Training batch size.")
-    parser.add_argument("path", type=str,
+    parser.add_argument("--learning_rate", type=float, default=3e-4,
+        help="Learning rate.")
+    parser.add_argument("--epochs", type=int, default=15,
+        help="Max number of epochs.")
+    parser.add_argument("--path", type=str,
         help="Path to preprocessed data.")
-    parser.add_argument("logs", type=str,
+    parser.add_argument("--logs", type=str,
         help="Path to model logs and checkpoints.")
     parser.add_argument("--nfolds", type=int, nargs="+", choices=[0,1,2,3,4], default=0, required=True,
         help="List of folds to run.")

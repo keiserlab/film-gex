@@ -47,10 +47,10 @@ class FiLMGenerator(nn.Module):
         self.beta = LinearBlock(*args, **kwargs)
     
     def forward(self, x, exp):
-        if exp=='scale' or exp=='id':
+        if exp=='scale':
             gamma = self.gamma(x)
             beta = torch.zeros_like(gamma)
-        elif exp=='shift':
+        elif exp=='shift' or exp=='id':
             beta = self.beta(x)
             gamma = torch.ones_like(beta)
         elif exp=='film':
@@ -61,7 +61,7 @@ class FiLMGenerator(nn.Module):
     
 class ConditionalNetwork(pl.LightningModule):
     """Dual FiLM generators."""
-    def __init__(self, exp, inputs_sz, conds_sz, metric=r2_score, learning_rate=1e-3, batch_size=2048, ps=[0.2]):
+    def __init__(self, exp, inputs_sz, conds_sz, metric=r2_score, learning_rate=1e-3, batch_size=2048, ps=[0.2], weight_decay=1e-5):
         super().__init__()
         self.inputs_emb = LinearBlock(in_sz=inputs_sz, layers=[512,256,128,64], out_sz=32, ps=ps, use_bn=True, bn_final=True)
         self.conds_emb = LinearBlock(in_sz=conds_sz, layers=[256,128], out_sz=32, ps=ps, use_bn=True, bn_final=True)
@@ -108,12 +108,12 @@ class ConditionalNetwork(pl.LightningModule):
         return loss
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+        return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate, weight_decay=self.hparams.weight_decay)
     
     
 class StandardNetwork(pl.LightningModule):
     """Vanilla MLP"""
-    def __init__(self, exp, inputs_sz, metric=r2_score, learning_rate=1e-3, batch_size=2048, ps=[0.2]):
+    def __init__(self, exp, inputs_sz, metric=r2_score, learning_rate=1e-3, batch_size=2048, ps=[0.2], weight_decay=1e-5):
         super().__init__()
         self.mlp = LinearBlock(in_sz=inputs_sz, layers=[512,256,128,64,32,16,8], out_sz=1, ps=ps, use_bn=True, bn_final=False)
         self.save_hyperparameters()
@@ -147,4 +147,4 @@ class StandardNetwork(pl.LightningModule):
         return loss
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+        return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate, weight_decay=self.hparams.weight_decay)

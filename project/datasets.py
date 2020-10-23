@@ -69,9 +69,9 @@ class CTRPDataModule(pl.LightningDataModule):
     
     def tensorize(self, data):
         # Tensorize
-        inputs = torch.FloatTensor(data[self.input_cols].to_numpy())
-        conds = torch.FloatTensor(data[self.cond_cols].to_numpy())
-        target = torch.FloatTensor(data[self.target].to_numpy())
+        inputs = torch.FloatTensor(data[self.input_cols].to_numpy(dtype=np.float32))
+        conds = torch.FloatTensor(data[self.cond_cols].to_numpy(dtype=np.float32))
+        target = torch.FloatTensor(data[self.target].to_numpy(dtype=np.float32))
         return inputs, conds, target.view(-1,1)
 
     # When doing distributed training, Datamodules have two optional arguments for
